@@ -1,0 +1,12 @@
+{
+  "name": "MARGDARSHI — Discipline Command Center",
+  "short_name": "MARGDARSHI",
+  "description": "Offline-first daily discipline, study, coding, and routine tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f1",
+  "theme_color": "#14201d",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
