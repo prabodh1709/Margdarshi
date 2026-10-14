@@ -1,45 +1,214 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { Task } from '../types'
 import { formatTime } from '../lib/date'
 import { formatCountdown, getFocusStatus, type FocusStatus } from '../lib/focus'
 
-type PictureInPictureApi = { requestWindow(options: { width: number; height: number }): Promise<Window> }
-type PIPWindow = Window & { documentPictureInPicture?: PictureInPictureApi }
-const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[character] || character))
+type PiPWindow = Window & {
+  documentPictureInPicture?: {
+    requestWindow(options: { width: number; height: number }): Promise<Window>
+  }
+}
 
-export function FocusTimer({ todayTasks, previousTasks }: { todayTasks: Task[]; previousTasks: Task[] }) {
-  const [showOverlay, setShowOverlay] = useState(false)
-  const [now, setNow] = useState(() => new Date())
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>'"]/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[c]!)
+
+export function FocusTimer({
+  todayTasks,
+  previousTasks,
+  onComplete,
+}: {
+  todayTasks: Task[]
+  previousTasks: Task[]
+  onComplete?: (task: Task) => void
+}) {
   const tasks = useRef({ todayTasks, previousTasks })
-  const [pipSupported] = useState(() => Boolean((window as PIPWindow).documentPictureInPicture))
+  const completeRef = useRef(onComplete)
+  const [now, setNow] = useState(() => new Date())
+  const [error, setError] = useState('')
+
   tasks.current = { todayTasks, previousTasks }
+  completeRef.current = onComplete
+
   const status = getFocusStatus(todayTasks, previousTasks, now)
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1_000); return () => window.clearInterval(timer) }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const openFloatingClock = async () => {
-    const api = (window as PIPWindow).documentPictureInPicture
-    if (!api) { setShowOverlay(true); return }
+    setError('')
+
+    const api = (window as PiPWindow).documentPictureInPicture
+
+    if (!window.isSecureContext || !api) {
+      setError('Floating mode unavailable here. Open Margadarshi at http://localhost:5173 in a supported desktop browser.')
+      return
+    }
+
     try {
       const pip = await api.requestWindow({ width: 360, height: 230 })
-      let interval = 0
+      let paused = false
+      let frozenStatus: FocusStatus | null = null
+
+      pip.document.head.innerHTML = `
+        <title>Margadarshi Focus</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0; background: #173f34; color: #f3fff8;
+            font-family: Arial, sans-serif;
+          }
+          main { padding: 17px 16px; min-height: 230px; }
+          .top { display:flex; justify-content:space-between; align-items:center; }
+          .brand { font-size:14px; font-weight:700; letter-spacing:.4px; }
+          .label { margin-top:17px; font-size:12px; color:#c1dcd0; }
+          h1 { font-size:20px; margin:7px 0 10px; line-height:1.2; }
+          .time { font-size:39px; font-weight:700; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; }
+          .caption { color:#c1dcd0; font-size:12px; margin-top:3px; }
+          .actions { display:flex; justify-content:space-between; gap:8px; margin-top:22px; }
+          button {
+            color:#f3fff8; background:transparent; border:0;
+            padding:7px 0; font-size:14px; cursor:pointer;
+          }
+          button:hover { color:#a9e7c6; }
+          .status { color:#a9e7c6; font-size:10px; }
+        </style>`
+
+      pip.document.body.innerHTML = `
+        <main>
+          <div class="top">
+            <div class="brand">◷ MARGDARSHI FOCUS</div>
+            <div class="status" id="state">LIVE</div>
+          </div>
+          <div class="label" id="label">CURRENT TASK</div>
+          <h1 id="task">Loading…</h1>
+          <div class="time" id="time">00:00:00</div>
+          <div class="caption" id="caption">REMAINING TIME</div>
+          <div class="actions">
+            <button id="pause">Pause</button>
+            <button id="complete">Complete</button>
+            <button id="hide">Hide</button>
+          </div>
+        </main>`
+
       const render = () => {
-        const live = getFocusStatus(tasks.current.todayTasks, tasks.current.previousTasks, new Date())
-        const task = live.task || live.nextTask
-        pip.document.title = 'MARGDARSHI Focus Clock'
-        pip.document.body.innerHTML = `<main><p class="eyebrow">${live.label} · INDIA TIME</p><h1>${escapeHtml(task?.title || 'No task scheduled')}</h1><p class="time">${formatCountdown(live.remainingSeconds)}</p><p class="sub">${live.task ? `${formatTime(live.task.startTime)} – ${formatTime(live.task.endTime)}` : task ? `Starts at ${formatTime(task.startTime)}` : 'Customize your timetable'}</p><p class="hint">Keep this window above other work. It updates every second.</p></main>`
+        if (pip.closed) return
+
+        const live = getFocusStatus(
+          tasks.current.todayTasks,
+          tasks.current.previousTasks,
+          new Date(),
+        )
+        const shown = paused && frozenStatus ? frozenStatus : live
+        const task = shown.task || shown.nextTask
+
+        const setText = (id: string, value: string) => {
+          const element = pip.document.getElementById(id)
+          if (element) element.textContent = value
+        }
+
+        setText('state', paused ? 'PAUSED' : 'LIVE')
+        setText('label', shown.task ? 'CURRENT TASK' : 'UP NEXT')
+        setText('task', task?.title || 'No task scheduled')
+        setText('time', formatCountdown(shown.remainingSeconds))
+        setText(
+          'caption',
+          shown.task
+            ? `${formatTime(shown.task.startTime)} – ${formatTime(shown.task.endTime)}`
+            : task
+              ? `STARTS AT ${formatTime(task.startTime)}`
+              : 'Add a task to your schedule',
+        )
+
+        const pauseButton = pip.document.getElementById('pause')
+        if (pauseButton) pauseButton.textContent = paused ? 'Resume' : 'Pause'
+
+        const completeButton = pip.document.getElementById('complete') as HTMLButtonElement | null
+        if (completeButton) completeButton.disabled = !shown.task || !completeRef.current
       }
-      pip.document.head.innerHTML = '<style>body{margin:0;background:#14201d;color:#ecf5ef;font-family:Arial,sans-serif}main{min-height:100vh;box-sizing:border-box;padding:25px;background:radial-gradient(circle at 100% 0,#35694f 0,transparent 45%)}.eyebrow{font-size:10px;letter-spacing:1.4px;color:#aecbb8;font-weight:700;margin:0 0 14px}h1{font-size:19px;line-height:1.3;margin:0;max-width:290px}.time{font-family:ui-monospace,monospace;font-size:42px;letter-spacing:-2px;margin:24px 0 3px}.sub{font-size:12px;color:#c9ddd0;margin:0}.hint{position:absolute;bottom:17px;color:#9cb6a5;font-size:10px;margin:0}</style>'
-      render(); interval = pip.setInterval(render, 1000)
+
+      pip.document.body.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement
+        if (target.closest('#pause')) {
+          if (!paused) {
+            frozenStatus = getFocusStatus(
+              tasks.current.todayTasks,
+              tasks.current.previousTasks,
+              new Date(),
+            )
+            paused = true
+          } else {
+            paused = false
+            frozenStatus = null
+          }
+          render()
+        }
+
+        if (target.closest('#complete')) {
+          const live = getFocusStatus(
+            tasks.current.todayTasks,
+            tasks.current.previousTasks,
+            new Date(),
+          )
+          if (live.task) completeRef.current?.(live.task)
+          paused = false
+          frozenStatus = null
+          render()
+        }
+
+        if (target.closest('#hide')) pip.close()
+      })
+
+      render()
+      const interval = pip.setInterval(render, 1000)
       pip.addEventListener('pagehide', () => pip.clearInterval(interval), { once: true })
-    } catch { setShowOverlay(true) }
+    } catch {
+      setError('Could not open floating mode. Try Chrome on this computer using localhost.')
+    }
   }
 
-  return <>
+  return (
     <article className="focus-timer card">
-      <div><div className="card-label"><span className="timer-dot" /> {status.label} · India time</div><h2>{status.task?.title || status.nextTask?.title || 'No task scheduled'}</h2><p>{status.task ? `${formatTime(status.task.startTime)} – ${formatTime(status.task.endTime)}` : status.nextTask ? `Starts at ${formatTime(status.nextTask.startTime)}` : 'Create a task to begin.'}</p></div>
-      <div className="countdown"><strong>{formatCountdown(status.remainingSeconds)}</strong><span>{status.task?.completed ? 'recorded' : status.task ? 'remaining' : 'until start'}</span></div>
-      <div className="focus-actions"><button className="button quiet" onClick={openFloatingClock}>{pipSupported ? 'Open floating clock' : 'Open focus view'}</button><button className="text-button" onClick={() => setShowOverlay(true)}>Expand</button></div>
+      <div>
+        <div className="card-label">
+          <span className="timer-dot" /> {status.label} · India time
+        </div>
+        <h2>{status.task?.title || status.nextTask?.title || 'No task scheduled'}</h2>
+        <p>
+          {status.task
+            ? `${formatTime(status.task.startTime)} – ${formatTime(status.task.endTime)}`
+            : status.nextTask
+              ? `Starts at ${formatTime(status.nextTask.startTime)}`
+              : 'Create a task to begin.'}
+        </p>
+      </div>
+
+      <div className="countdown">
+        <strong>{formatCountdown(status.remainingSeconds)}</strong>
+        <span>
+          {status.task?.completed
+            ? 'recorded'
+            : status.task
+              ? 'remaining'
+              : 'until start'}
+        </span>
+      </div>
+
+      <div className="focus-actions">
+        <button className="button quiet" onClick={openFloatingClock}>
+          Open floating clock
+        </button>
+      </div>
+
+      {error && <p role="status">{error}</p>}
     </article>
-    {showOverlay && <div className="focus-overlay" role="dialog" aria-modal="true" aria-label="Focus timer"><button className="close overlay-close" onClick={() => setShowOverlay(false)} aria-label="Close focus timer">×</button><div className="focus-overlay-copy"><p>{status.label} · INDIA TIME</p><h2>{status.task?.title || status.nextTask?.title || 'No task scheduled'}</h2><strong>{formatCountdown(status.remainingSeconds)}</strong><span>{status.task ? `${formatTime(status.task.startTime)} – ${formatTime(status.task.endTime)}` : status.nextTask ? `Starts at ${formatTime(status.nextTask.startTime)}` : ''}</span><small>This in-app focus view is the fallback when floating Picture-in-Picture is unavailable.</small></div></div>}
-  </>
+  )
 }

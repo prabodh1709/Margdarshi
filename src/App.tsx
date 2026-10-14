@@ -269,13 +269,35 @@ export default function App() {
         </div>
   </article>
         <article className="card ai-card">
-          <div className="card-label">
-            <span className="spark">✦</span> MARGDARSHI AI
-          </div>
-          <h2>{motivation.aiMessage}</h2><p>Practical guidance grounded in today’s actual routine.</p>
-            <button
-             className="text-button" onClick={() => setView('motivation')}>Open daily guidance →
-            </button>
+          
+<div className="card-label">
+  <span className="spark">✦</span> MARGDARSHI AI
+</div>
+
+<h2>{motivation.hindi}</h2>
+
+<p className="dashboard-motivation-translation">
+  {motivation.message}
+</p>
+
+<div className="dashboard-motivation-shloka">
+  <p>{motivation.shloka}</p>
+  <small>{motivation.attribution}</small>
+  <p className="dashboard-motivation-meaning">
+    <strong>अर्थ:</strong> {motivation.meaning}
+  </p>
+</div>
+
+<p className="dashboard-motivation-application">
+  <strong>आज का अभ्यास:</strong> {motivation.apply}
+</p>
+
+<button
+  className="text-button"
+  onClick={() => setView('motivation')}
+>
+  Open daily guidance →
+</button>
         </article>
       </div>
       <div className="stat-grid">
@@ -284,7 +306,11 @@ export default function App() {
         <Stat label="Meditation" value={`${todayMetrics.meditationCompleted} / 2`} sub="mandatory sessions" tone="amber" />
         <Stat label="Routine streak" value={`${overallStreak.current} days`} sub={`best: ${overallStreak.longest} days`} tone="rose" />
       </div>
-      <FocusTimer todayTasks={todayTasks} previousTasks={previousDayTasks} />
+      <FocusTimer
+  todayTasks={todayTasks}
+  previousTasks={previousDayTasks}
+  onComplete={toggleTask}
+/>
       <div className="content-grid dashboard-grid">
 <article className="card schedule-card">
   <div className="card-title">
@@ -364,11 +390,31 @@ export default function App() {
     </section>
   }
 
-  const Motivation = () => <section className="page motivation-page"><Header title="Daily motivation" /><div className="motivation-layout"><article className="card motivation-hero"><div className="card-label"><span className="spark">✦</span> Today’s message</div><h2>{motivation.hindi}</h2><p className="translation">{motivation.message}</p><div className="shloka"><p>{motivation.shloka}</p><small>{motivation.attribution}</small></div><h3>अर्थ</h3><p>{motivation.meaning}</p><h3>Practical interpretation</h3><p>{motivation.explanation}</p><div className="apply-today"><span>Apply this today</span><strong>{motivation.apply}</strong></div></article><aside className="side-stack"><article className="card ai-panel"><div className="card-label"><span className="spark">✦</span> MARGDARSHI AI</div><h2>{motivation.aiMessage}</h2><p>This privacy-conscious fallback uses your on-device progress. Connect a server-side AI endpoint later if you want generative responses without exposing a key in the app.</p></article><article className="card"><div className="card-label">Evening reflection</div><h2>What deserves a repeat?</h2><p>{todayMetrics.percent >= 70 ? 'Your routine is building evidence that you can trust your plan.' : 'There is no penalty for a missed block. The next committed block is the recovery.'}</p><button className="button quiet" onClick={() => { setView('calendar'); setSelectedDate(today); setCalendarMode('day') }}>Open today’s review</button></article><SyncCard /></aside></div></section>
+  const Motivation = () => <section className="page motivation-page"><Header title="Daily motivation" /><div className="motivation-layout"><article className="card motivation-hero"><div className="card-label"><span className="spark">✦</span> Today’s message</div><h2>{motivation.hindi}</h2><p className="translation">{motivation.message}</p><div className="shloka"><p>{motivation.shloka}</p><small>{motivation.attribution}</small></div><h3>अर्थ</h3><p>{motivation.meaning}</p><h3>Practical interpretation</h3><p>{motivation.explanation}</p><div className="apply-today"><span>Apply this today</span><strong>{motivation.apply}</strong></div></article><aside className="side-stack"><article className="card ai-panel"><div className="card-label"><span className="spark">✦</span> MARGDARSHI AI</div><h2>{motivation.aiMessage}</h2><p>This privacy-conscious fallback uses your on-device progress. Connect a server-side AI endpoint later if you want generative responses without exposing a key in the app.</p></article><article className="card"><div className="card-label">Evening reflection</div><h2>What deserves a repeat?</h2><p>{todayMetrics.percent >= 70 ? 'Your routine is building evidence that you can trust your plan.' : 'There is no penalty for a missed block. The next committed block is the recovery.'}</p><button className="button quiet" onClick={() => { setView('calendar'); setSelectedDate(today); setCalendarMode('day') }}>Open today’s review</button></article>{SyncCard()}</aside></div></section>
 
   const SyncCard = () => <article className="card sync-card"><div className="card-label">Cross-device sync</div><h2>{userEmail ? 'Cloud sync connected' : 'Keep every device aligned'}</h2>{!supabase ? <p>Add the optional Supabase environment variables to enable passwordless, secure account sync. Local data is already persisted on this device.</p> : userEmail ? <><p>Signed in as {userEmail}. Your updates stay local first, then can be synced.</p><div className="quick-actions"><button onClick={sync} disabled={syncBusy}>{syncBusy ? 'Syncing…' : 'Sync now'}</button><button onClick={async () => { await signOutCloud(); setToast('Signed out of cloud sync.') }}>Sign out</button></div></> : <><p>Enter your email to receive a passwordless sign-in link.</p><div className="email-sync"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /><button className="button" onClick={sync} disabled={syncBusy}>{syncBusy ? 'Sending…' : 'Send link'}</button></div></>}</article>
 
-  return <main className="app-shell"><Navigation /><div className="main-area">{view === 'dashboard' && <Dashboard />}{view === 'calendar' && <Calendar />}{view === 'tasks' && <Tasks />}{view === 'progress' && <Progress />}{view === 'motivation' && <Motivation />}</div>{toast && <div className="toast" role="status">{toast}</div>}{showTaskForm && <TaskModal />}{showCoding && <CodingModal />}{showGate && <GateModal />}{showTargetSettings && <TargetModal />}</main>
+  
+return (
+  <main className="app-shell">
+    {Navigation()}
+    <div className="main-area">
+      {view === 'dashboard' && Dashboard()}
+      {view === 'calendar' && Calendar()}
+      {view === 'tasks' && Tasks()}
+      {view === 'progress' && Progress()}
+      {view === 'motivation' && Motivation()}
+    </div>
+
+    {toast && <div className="toast" role="status">{toast}</div>}
+
+    {showTaskForm && TaskModal()}
+    {showCoding && CodingModal()}
+    {showGate && GateModal()}
+    {showTargetSettings && TargetModal()}
+  </main>
+)
+
 
   function TaskModal() { return <div className="modal-backdrop" role="presentation"><form className="modal" onSubmit={saveTask}><div className="modal-head"><div><div className="card-label">{editing ? 'Edit schedule item' : 'New schedule item'}</div><h2>{editing?.title || 'Plan a focused block'}</h2></div><button type="button" className="close" onClick={() => setShowTaskForm(false)}>×</button></div><label>Task name<input required value={taskForm.title} onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))} /></label><div className="form-grid"><label>Start time<input type="time" value={taskForm.startTime} onChange={(e) => setTaskForm((f) => ({ ...f, startTime: e.target.value }))} /></label><label>End time<input type="time" value={taskForm.endTime} onChange={(e) => setTaskForm((f) => ({ ...f, endTime: e.target.value }))} /></label><label>Category<select value={taskForm.category} onChange={(e) => setTaskForm((f) => ({ ...f, category: e.target.value as Category }))}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label>Priority<select value={taskForm.priority} onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value as Priority }))}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label></div><p className="duration-preview">Timeline: {taskForm.startTime} – {taskForm.endTime} · {formatDuration(durationMinutes(taskForm.startTime, taskForm.endTime))}</p>{taskForm.category === 'GATE' && <label>GATE subject<select value={taskForm.subject || ''} onChange={(e) => setTaskForm((f) => ({ ...f, subject: e.target.value }))}><option value="">Choose subject</option>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label>}<label>Notes<textarea value={taskForm.notes || ''} onChange={(e) => setTaskForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional context or target…" /></label>{editing?.sourceTemplateId && <label className="checkbox apply-scope"><input type="checkbox" checked={applyScheduleChange} onChange={(e) => setApplyScheduleChange(e.target.checked)} /> Apply this time and timeline change to every recurring day</label>}{!editing && <label className="checkbox"><input type="checkbox" checked={taskForm.recurring} onChange={(e) => setTaskForm((f) => ({ ...f, recurring: e.target.checked }))} /> Repeat every day</label>}{editing?.mandatory && <p className="notice">This is a mandatory meditation session. Its schedule can be edited but it cannot be removed.</p>}<div className="modal-actions"><button type="button" className="button quiet" onClick={() => setShowTaskForm(false)}>Cancel</button><button className="button" type="submit">{editing ? 'Save changes' : 'Add task'}</button></div></form></div> }
   function CodingModal() { return <div className="modal-backdrop"><form className="modal" onSubmit={addCoding}><div className="modal-head"><div><div className="card-label">Coding tracker</div><h2>Log focused practice</h2></div><button type="button" className="close" onClick={() => setShowCoding(false)}>×</button></div><label>Problem / session<input required value={codingForm.title} onChange={(e) => setCodingForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Binary search practice" /></label><div className="form-grid"><label>Platform<input value={codingForm.platform} onChange={(e) => setCodingForm((f) => ({ ...f, platform: e.target.value }))} placeholder="Optional" /></label><label>Topic<input value={codingForm.topic} onChange={(e) => setCodingForm((f) => ({ ...f, topic: e.target.value }))} placeholder="e.g. Arrays" /></label><label>Difficulty<select value={codingForm.difficulty} onChange={(e) => setCodingForm((f) => ({ ...f, difficulty: e.target.value as CodingEntry['difficulty'] }))}><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label>Minutes<input type="number" min="1" value={codingForm.minutes} onChange={(e) => setCodingForm((f) => ({ ...f, minutes: Number(e.target.value) }))} /></label></div><label className="checkbox"><input type="checkbox" checked={codingForm.solved} onChange={(e) => setCodingForm((f) => ({ ...f, solved: e.target.checked }))} /> Problem solved</label><div className="modal-actions"><button type="button" className="button quiet" onClick={() => setShowCoding(false)}>Cancel</button><button className="button">Save entry</button></div></form></div> }
