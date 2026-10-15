@@ -1,5 +1,6 @@
 
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { supabase } from './lib/storage'
 import './auth.css'
 
@@ -10,12 +11,13 @@ export default function Auth() {
   const [mode, setMode] = useState<AuthMode>('signup')
   const [step, setStep] = useState<SignupStep>('details')
   const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setMessage('')
 
@@ -29,14 +31,38 @@ export default function Auth() {
     setLoading(true)
 
     try {
+      const normalizedEmail = email.trim().toLowerCase()
+
       if (mode === 'signup') {
         if (step === 'details') {
           const { data, error } = await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-          })
+           email: normalizedEmail,
+           password,
+           options: {
+           data: {
+          full_name: fullName.trim(),
+          },
+  },
+})
 
           if (error) throw error
+
+          // Supabase may return an empty identities array when the
+          // email already exists and duplicate-signup masking is enabled.
+          if (
+            data.user &&
+            Array.isArray(data.user.identities) &&
+            data.user.identities.length === 0
+          ) {
+            setMode('login')
+            setStep('details')
+            setPassword('')
+            setOtp('')
+            setMessage(
+              'This email is already registered. Please sign in instead.',
+            )
+            return
+          }
 
           if (data.session) {
             setMessage('Account created and email verified successfully!')
@@ -46,7 +72,7 @@ export default function Auth() {
           }
         } else {
           const { error } = await supabase.auth.verifyOtp({
-            email: email.trim(),
+            email: normalizedEmail,
             token: otp.trim(),
             type: 'signup',
           })
@@ -57,7 +83,7 @@ export default function Auth() {
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: normalizedEmail,
           password,
         })
 
@@ -89,7 +115,7 @@ export default function Auth() {
     try {
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
       })
 
       if (error) throw error
@@ -226,6 +252,16 @@ export default function Auth() {
 
             {!(mode === 'signup' && step === 'otp') && (
               <>
+              <label htmlFor="auth-name">Full Name</label>
+              <input
+               id="auth-name"
+               type="text"
+               autoComplete="name"
+               required
+               value={fullName}
+               onChange={(event) => setFullName(event.target.value)}
+               placeholder="Enter your full name"
+/>
                 <label htmlFor="auth-email">Email address</label>
                 <input
                   id="auth-email"
@@ -325,7 +361,11 @@ export default function Auth() {
                   required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={
+                    mode === 'signup'
+                      ? 'Create your password'
+                      : 'Enter your password'
+                  }
                 />
 
                 <button
