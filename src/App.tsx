@@ -1,4 +1,5 @@
 import Auth from './Auth'
+import { createInitialState } from './lib/defaults'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import type { AppState, Category, CodingEntry, GateEntry, Priority, Task, TaskTemplate, View } from './types'
@@ -31,7 +32,10 @@ const uid = () => crypto.randomUUID?.() ?? `task-${Date.now()}-${Math.random().t
 
 export default function App() {
 
-  const [state, setState] = useState<AppState>(loadLocalState)
+  const [state, setState] = useState<AppState>(() =>
+  supabase ? createInitialState() : loadLocalState()
+)
+
   const [authSession, setAuthSession] = useState<boolean | null>(null)
 
   const [view, setView] = useState<View>('dashboard')
@@ -73,8 +77,18 @@ export default function App() {
   const [cloudReady, setCloudReady] = useState(false)
 
   const [syncBusy, setSyncBusy] = useState(false)
+  const [profilePhoto, setProfilePhoto] = useState('')
 
   const [showTargetSettings, setShowTargetSettings] = useState(false)
+  useEffect(() => {
+  if (!cloudUserId) {
+    setProfilePhoto('')
+    return
+  }
+
+  const key = `margdarshi-profile-photo:${cloudUserId}`
+  setProfilePhoto(localStorage.getItem(key) ?? '')
+}, [cloudUserId])
 
   const today = indiaDateKey(clock)
 
@@ -102,47 +116,102 @@ export default function App() {
 
   useEffect(() => { const timer = window.setInterval(() => setClock(new Date()), 60_000); return () => clearInterval(timer) }, [])
 
-  useEffect(() => { document.documentElement.dataset.theme = state.settings.theme; saveLocalState(state) }, [state])
+ 
+useEffect(() => {
+  document.documentElement.dataset.theme = state.settings.theme
+
+  if (!supabase) {
+    saveLocalState(state)
+  }
+}, [state])
+
 
   useEffect(() => {
+
     let live = true
 
     const initializeSession = async () => {
+
       const user = await getCloudUser()
+
       if (!live) return
 
       setAuthSession(Boolean(user))
+
       if (!user) {
+
         setCloudReady(true)
+
         return
+
       }
 
       setUserEmail(user.email ?? 'Connected account')
+      setState((previous) => ({
+      ...previous,
+       settings: {
+      ...previous.settings,
+      displayName: user.user_metadata?.full_name ?? previous.settings.displayName,
+  },
+}))
       setCloudUserId(user.id)
+
       try {
+
         const remote = await readCloudState(user.id)
-        if (remote && live) setState(remote)
+        const remoteState = remote ?? createInitialState()
+        const authName = user.user_metadata?.full_name
+
+        if (live) { 
+        setState({
+        ...remoteState,
+        settings: {
+        ...remoteState.settings,
+        displayName:
+        typeof authName === 'string' && authName.trim()
+          ? authName.trim()
+          : remoteState.settings.displayName,
+    },
+  })
+}
+
       } catch {
-        if (live) setToast('Cloud sync is connected, but the database is not ready yet.')
-      }
-      if (live) setCloudReady(true)
+          if (live) {
+          setToast('Cloud data could not load. Please try again.')
+         return
+       }
+}
+
+if (live) setCloudReady(true)
+
     }
 
     void initializeSession().catch(() => {
+
       if (live) {
+
         setAuthSession(false)
+
         setCloudReady(true)
+
       }
+
     })
 
     const { data } = supabase?.auth.onAuthStateChange((_event, session) => {
+
       setAuthSession(Boolean(session))
+
       setUserEmail(session?.user.email ?? null)
 
       if (!session?.user) {
+
         setCloudUserId(null)
+
         setCloudReady(false)
+
         return
+
       }
 
       const userId = session.user.id
@@ -150,29 +219,47 @@ export default function App() {
       setCloudUserId(userId)
       void readCloudState(userId).then((remote) => {
         if (!live) return
-        if (remote) setState(remote)
-        setCloudReady(true)
+       setState(remote ?? createInitialState())
+       setCloudReady(true)
       }).catch(() => {
-        if (!live) return
-        setToast('Cloud sync is connected, but the database is not ready yet.')
-        setCloudReady(true)
-      })
+     if (!live) return
+      setToast('Cloud data could not load. Please try again.')
+     })
+
     }) ?? { data: { subscription: { unsubscribe: () => undefined } } }
 
     return () => {
+
       live = false
+
       data.subscription.unsubscribe()
+
     }
+
   }, [])
-  useEffect(() => {
 
-    if (!cloudReady || !cloudUserId) return
+   
+useEffect(() => {
+  if (!supabase || !authSession || !cloudReady || !cloudUserId) return
 
-    const timer = window.setTimeout(() => { writeCloudState(cloudUserId, state).catch(() => setToast('Saved locally. Cloud sync will retry on the next update.')) }, 750)
+  let cancelled = false
 
-    return () => window.clearTimeout(timer)
+  const timer = window.setTimeout(() => {
+    if (cancelled) return
 
-  }, [cloudReady, cloudUserId, state])
+    void writeCloudState(cloudUserId, state).catch(() => {
+      if (!cancelled) {
+        setToast('Cloud sync failed. Please try again.')
+      }
+    })
+  }, 750)
+
+  return () => {
+    cancelled = true
+    window.clearTimeout(timer)
+  }
+}, [supabase, authSession, cloudReady, cloudUserId, state])
+
 
   useEffect(() => {
 
@@ -395,6 +482,12 @@ export default function App() {
      </div>
 
     <div className="sidebar-bottom">
+
+      <button className={`profile-nav-button ${(view as string) === 'profile' ? 'active' : ''}`} onClick={() => setView('profile' as View)}>
+        {profilePhoto ? <img src={profilePhoto} alt="Profile" className="profile-nav-photo" /> : <span className="profile-nav-avatar">{(userEmail?.[0] ?? state.settings.displayName?.[0] ?? 'U').toUpperCase()}</span>}
+        <span className="profile-nav-label">Profile</span>
+        <span className="profile-nav-arrow">›</span>
+      </button>
 
       <button className="theme-toggle"
 
@@ -776,28 +869,123 @@ export default function App() {
 
   const SyncCard = () => <article className="card sync-card"><div className="card-label">Cross-device sync</div><h2>{userEmail ? 'Cloud sync connected' : 'Keep every device aligned'}</h2>{!supabase ? <p>Add the optional Supabase environment variables to enable passwordless, secure account sync. Local data is already persisted on this device.</p> : userEmail ? <><p>Signed in as {userEmail}. Your updates stay local first, then can be synced.</p><div className="quick-actions"><button onClick={sync} disabled={syncBusy}>{syncBusy ? 'Syncing…' : 'Sync now'}</button><button onClick={async () => { await signOutCloud(); setToast('Signed out of cloud sync.') }}>Sign out</button></div></> : <><p>Enter your email to receive a passwordless sign-in link.</p><div className="email-sync"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /><button className="button" onClick={sync} disabled={syncBusy}>{syncBusy ? 'Sending…' : 'Send link'}</button></div></>}</article>
 
-return (
-    authSession === null ? (
-      <div className="auth-loading">Loading Margadarshi…</div>
-    ) : !authSession ? (
-      <Auth />
-    ) : (
-      <main className="app-shell">
-        {Navigation()}
-        <div className="main-area">
-          {view === 'dashboard' && Dashboard()}
-          {view === 'calendar' && Calendar()}
-          {view === 'tasks' && Tasks()}
-          {view === 'progress' && Progress()}
-          {view === 'motivation' && Motivation()}
-        </div>
-        {toast && <div className="toast" role="status">{toast}</div>}
-        {showTaskForm && TaskModal()}
-        {showCoding && CodingModal()}
-        {showGate && GateModal()}
-        {showTargetSettings && TargetModal()}
-      </main>
+  const Profile = () => <section className="page profile-page">
+    <Header title="My Profile" />
+    <article className="card profile-card">
+      <div className="profile-hero">
+        <label className="profile-photo-picker" title="Upload profile photo">
+          {profilePhoto ? <img src={profilePhoto} alt="Your profile" /> : <span>{(userEmail?.[0] ?? state.settings.displayName?.[0] ?? 'U').toUpperCase()}</span>}
+          <input type="file" accept="image/*" onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (!file) return
+            if (file.size > 2 * 1024 * 1024) { setToast('Choose a profile photo smaller than 2 MB.'); return }
+            const reader = new FileReader()
+            reader.onload = () => {
+              const value = String(reader.result ?? '')
+              setProfilePhoto(value)
+              if (cloudUserId) {
+                 localStorage.setItem(
+                  `margdarshi-profile-photo:${cloudUserId}`,
+                   value
+                 )
+              } 
+ try {
+  if (cloudUserId) {
+    localStorage.setItem(
+      `margdarshi-profile-photo:${cloudUserId}`,
+      value
     )
+  }
+} catch {
+  setToast('Photo is too large to save on this device.')
+}
+}
+reader.readAsDataURL(file)
+}}
+/>
+        </label>
+        <div className="profile-hero-copy">
+          <div className="card-label">YOUR ACCOUNT</div>
+           <p className="profile-name">
+           {state.settings.displayName}
+            </p>
+          <p>{userEmail ?? 'Signed-in account'}</p>
+          <small>Click your photo to change it</small>
+        </div>
+      </div>
+      <div className="profile-details">
+        <div><span>Registered email</span><strong>{userEmail ?? 'Not available'}</strong></div>
+        <div><span>Unique User ID</span><strong className="profile-id">{cloudUserId ?? 'Cloud account not connected'}</strong></div>
+        <div><span>Storage</span><strong>{cloudUserId ? 'Cloud sync enabled' : 'Local device storage'}</strong></div>
+      </div>
+    </article>
+    <article className="card profile-card">
+      <div className="card-label">LEGAL</div><h2>Terms &amp; Privacy</h2>
+      <p className="profile-muted">Review how your account and planner data should be handled.</p>
+      <div className="profile-button-row">
+        <button className="button quiet" onClick={() => setToast('Add your published Terms & Conditions URL here before launch.')}>Terms &amp; Conditions</button>
+        <button className="button quiet" onClick={() => setToast('Add your published Privacy Policy URL here before launch.')}>Privacy Policy</button>
+      </div>
+    </article>
+    <article className="card profile-card">
+      <div className="card-label">ACCOUNT</div><h2>Account actions</h2>
+      <div className="profile-button-row">
+        <button className="button quiet" onClick={async () => {
+          if (!window.confirm('Log out of Margadarshi?')) return
+          try { await signOutCloud(); setAuthSession(false); setCloudUserId(null); setUserEmail(null); setToast('Logged out successfully.') }
+          catch { setToast('Could not log out. Please try again.') }
+        }}>Log out</button>
+        <button className="button profile-danger" onClick={() => window.alert('Your account and planner data have NOT been deleted. Secure account deletion must be configured on a server before this action can be enabled.')}>Erase My Data</button>
+      </div>
+      <p className="profile-muted">Erase My Data is not enabled yet. Account deletion requires a secure server-side operation.</p>
+    </article>
+  </section>
+
+return (
+
+    authSession === null ? (
+
+      <div className="auth-loading">Loading Margadarshi…</div>
+
+    ) : !authSession ? (
+
+      <Auth />
+
+    ) : (
+
+      <main className="app-shell">
+
+        {Navigation()}
+
+        <div className="main-area">
+
+          {view === 'dashboard' && Dashboard()}
+
+          {view === 'calendar' && Calendar()}
+
+          {view === 'tasks' && Tasks()}
+
+          {view === 'progress' && Progress()}
+
+          {view === 'motivation' && Motivation()}
+          {(view as string) === 'profile' && Profile()}
+
+        </div>
+
+        {toast && <div className="toast" role="status">{toast}</div>}
+
+        {showTaskForm && TaskModal()}
+
+        {showCoding && CodingModal()}
+
+        {showGate && GateModal()}
+
+        {showTargetSettings && TargetModal()}
+
+      </main>
+
+    )
+
   )
 
   function TaskModal() { return <div className="modal-backdrop" role="presentation"><form className="modal" onSubmit={saveTask}><div className="modal-head"><div><div className="card-label">{editing ? 'Edit schedule item' : 'New schedule item'}</div><h2>{editing?.title || 'Plan a focused block'}</h2></div><button type="button" className="close" onClick={() => setShowTaskForm(false)}>×</button></div><label>Task name<input required value={taskForm.title} onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))} /></label><div className="form-grid"><label>Start time<input type="time" value={taskForm.startTime} onChange={(e) => setTaskForm((f) => ({ ...f, startTime: e.target.value }))} /></label><label>End time<input type="time" value={taskForm.endTime} onChange={(e) => setTaskForm((f) => ({ ...f, endTime: e.target.value }))} /></label><label>Category<select value={taskForm.category} onChange={(e) => setTaskForm((f) => ({ ...f, category: e.target.value as Category }))}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><label>Priority<select value={taskForm.priority} onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value as Priority }))}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label></div><p className="duration-preview">Timeline: {taskForm.startTime} – {taskForm.endTime} · {formatDuration(durationMinutes(taskForm.startTime, taskForm.endTime))}</p>{taskForm.category === 'GATE' && <label>GATE subject<select value={taskForm.subject || ''} onChange={(e) => setTaskForm((f) => ({ ...f, subject: e.target.value }))}><option value="">Choose subject</option>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label>}<label>Notes<textarea value={taskForm.notes || ''} onChange={(e) => setTaskForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional context or target…" /></label>{editing?.sourceTemplateId && <label className="checkbox apply-scope"><input type="checkbox" checked={applyScheduleChange} onChange={(e) => setApplyScheduleChange(e.target.checked)} /> Apply this time and timeline change to every recurring day</label>}{!editing && <label className="checkbox"><input type="checkbox" checked={taskForm.recurring} onChange={(e) => setTaskForm((f) => ({ ...f, recurring: e.target.checked }))} /> Repeat every day</label>}{editing?.mandatory && <p className="notice">This is a mandatory meditation session. Its schedule can be edited but it cannot be removed.</p>}<div className="modal-actions"><button type="button" className="button quiet" onClick={() => setShowTaskForm(false)}>Cancel</button><button className="button" type="submit">{editing ? 'Save changes' : 'Add task'}</button></div></form></div> }
