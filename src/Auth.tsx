@@ -79,7 +79,7 @@ export default function Auth() {
 
           if (error) throw error
 
-          setMessage('Email verified and account created successfully!')
+          setMessage('Email verified and account created successfully!!')
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
