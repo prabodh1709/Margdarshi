@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from './lib/storage'
-import './Auth.css'
+import './auth.css'
 
 type AuthMode = 'login' | 'signup'
 type SignupStep = 'details' | 'otp'
@@ -41,7 +41,7 @@ export default function Auth() {
            options: {
            data: {
           full_name: fullName.trim(),
-          },
+    },
   },
 })
 
