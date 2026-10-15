@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from './lib/storage'
-import './auth.css'
+import './Auth.css'
 
 type AuthMode = 'login' | 'signup'
 type SignupStep = 'details' | 'otp'
