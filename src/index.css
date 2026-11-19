@@ -615,6 +615,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   color: #267454;
 }
 
+.focus-lock-card-status {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
 .focus-lock-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -703,6 +709,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 }
 
 @media (max-width: 720px) {
+  .focus-lock-card-status {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   .focus-lock-steps,
   .focus-app-list {
     grid-template-columns: 1fr;

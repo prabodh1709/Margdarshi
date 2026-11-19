@@ -34,6 +34,22 @@ export const loadLocalState = (userId?: string): AppState => {
 
 export const saveLocalState = (state: AppState, userId?: string) => localStorage.setItem(userId ? userStorageKey(userId) : STORAGE_KEY, JSON.stringify(state))
 
+const hasPlannerRecords = (state: AppState) =>
+  state.templates.length > 0 ||
+  Object.keys(state.taskOverrides).length > 0 ||
+  state.codingEntries.length > 0 ||
+  state.gateEntries.length > 0 ||
+  Object.keys(state.dailyNotes).length > 0
+
+// A failed/empty cloud write must not erase a profile that still exists in
+// the user's local cache. This is especially important during first login on
+// a new device while the app_state row is being created.
+export const chooseHydratedState = (remote: AppState | null, local: AppState) => {
+  if (!remote) return local
+  if (!hasPlannerRecords(remote) && hasPlannerRecords(local)) return local
+  return remote
+}
+
 export const getCloudUser = async (): Promise<User | null> => {
   if (!supabase) return null
   const { data } = await supabase.auth.getUser()

@@ -8,7 +8,7 @@ import { addDays, addMonths, durationMinutes, formatDate, formatDuration, format
 
 import { categoryMinutes, lastNDays, metricForDate, streakFor, tasksForDate } from './lib/metrics'
 
-import { getCloudUser, loadLocalState, readCloudState, saveLocalState, sendMagicLink, signOutCloud, supabase, writeCloudState } from './lib/storage'
+import { chooseHydratedState, getCloudUser, loadLocalState, readCloudState, saveLocalState, sendMagicLink, signOutCloud, supabase, writeCloudState } from './lib/storage'
 
 import { motivationFor } from './lib/motivation'
 
@@ -123,8 +123,13 @@ export default function App() {
 useEffect(() => {
   document.documentElement.dataset.theme = state.settings.theme
 
+  // Do not persist the blank bootstrap state while Supabase is still
+  // hydrating the signed-in user's cloud/local profile. Doing so can
+  // overwrite the user's saved tasks before the remote state arrives.
+  if (supabase && (authSession === null || (cloudUserId && !cloudReady))) return
+
   saveLocalState(state, cloudUserId ?? undefined)
-}, [state, cloudUserId])
+}, [state, cloudUserId, cloudReady, authSession])
 
 
   useEffect(() => {
@@ -161,7 +166,7 @@ useEffect(() => {
       try {
 
         const remote = await readCloudState(user.id)
-        const remoteState = remote ?? localState
+        const remoteState = chooseHydratedState(remote, localState)
         const authName = user.user_metadata?.full_name
 
         if (live) { 
@@ -175,10 +180,14 @@ useEffect(() => {
           : remoteState.settings.displayName,
     },
   })
+
+        if (!remote || remoteState === localState) void writeCloudState(user.id, localState).catch(() => undefined)
 }
 
       } catch {
           if (live) {
+          setState(localState)
+          setCloudReady(true)
           setToast('Cloud data could not load. Please try again.')
          return
        }
@@ -222,11 +231,14 @@ if (live) setCloudReady(true)
       setCloudUserId(userId)
       void readCloudState(userId).then((remote) => {
         if (!live) return
-       setState(remote ?? localState)
+       const hydratedState = chooseHydratedState(remote, localState)
+       setState(hydratedState)
        setCloudReady(true)
-       if (!remote) void writeCloudState(userId, localState).catch(() => undefined)
+       if (!remote || hydratedState === localState) void writeCloudState(userId, localState).catch(() => undefined)
       }).catch(() => {
      if (!live) return
+      setState(localState)
+      setCloudReady(true)
       setToast('Cloud data could not load. Please try again.')
      })
 
@@ -747,6 +759,11 @@ useEffect(() => {
 
 />
 
+      <FocusLockPanel
+        selectedPackages={state.settings.blockedApps ?? []}
+        onSelectedPackagesChange={(blockedApps) => modify((previous) => ({ ...previous, settings: { ...previous.settings, blockedApps } }))}
+      />
+
       <div className="content-grid dashboard-grid">
 
 <article className="card schedule-card">
@@ -952,10 +969,6 @@ reader.readAsDataURL(file)
         <div><span>Storage</span><strong>{cloudUserId ? 'Cloud sync enabled' : 'Local device storage'}</strong></div>
       </div>
     </article>
-    <FocusLockPanel
-      selectedPackages={state.settings.blockedApps ?? []}
-      onSelectedPackagesChange={(blockedApps) => modify((previous) => ({ ...previous, settings: { ...previous.settings, blockedApps } }))}
-    />
     <article className="card profile-card">
       <div className="card-label">LEGAL</div><h2>Terms &amp; Privacy</h2>
       <p className="profile-muted">Review how your account and planner data should be handled.</p>

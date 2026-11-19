@@ -12,6 +12,7 @@ export function FocusLockPanel({
   const [permissions, setPermissions] = useState<FocusLockPermissions | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [expanded, setExpanded] = useState(false)
 
   const selectedSet = useMemo(() => new Set(selectedPackages), [selectedPackages])
 
@@ -49,42 +50,45 @@ export function FocusLockPanel({
   }
 
   return (
-    <article className="card focus-lock-card">
+    <article className="card focus-lock-card" id="focus-lock-panel">
       <div className="card-title">
         <div>
           <div className="card-label">ANDROID FOCUS LOCK</div>
           <h2>Protect your study block</h2>
         </div>
-        <span className={`permission-pill ${permissions?.accessibilityEnabled && permissions.overlayGranted ? 'ready' : ''}`}>
-          {permissions?.accessibilityEnabled && permissions.overlayGranted ? 'Ready' : 'Setup needed'}
-        </span>
-      </div>
-      <p className="profile-muted">
-        Choose distracting apps here. When Focus mode starts, Android will show Margdarshi over those apps until the active task is completed.
-      </p>
-      <div className="focus-lock-steps">
-        <span className={permissions?.accessibilityEnabled ? 'done' : ''}>1. Accessibility access</span>
-        <span className={permissions?.overlayGranted ? 'done' : ''}>2. Display over other apps</span>
-        <span className={selectedPackages.length ? 'done' : ''}>3. Select apps</span>
-      </div>
-      <div className="profile-button-row focus-lock-actions">
-        <button className="button quiet" onClick={() => void FocusLock.openAccessibilitySettings()}>Open Accessibility settings</button>
-        <button className="button quiet" onClick={() => void FocusLock.openOverlaySettings()}>Allow overlay</button>
-        <button className="button quiet" onClick={() => { void refreshPermissions(); void loadApps() }} disabled={busy}>{busy ? 'Loading…' : 'Load installed apps'}</button>
-      </div>
-      {apps.length > 0 && (
-        <div className="focus-app-list" aria-label="Apps protected by Focus Lock">
-          {apps.map((app) => (
-            <label className="focus-app-option" key={app.packageName}>
-              <input type="checkbox" checked={selectedSet.has(app.packageName)} onChange={() => toggleApp(app.packageName)} />
-              <span>{app.label}</span>
-              <small>{app.packageName}</small>
-            </label>
-          ))}
+        <div className="focus-lock-card-status">
+          <span className={`permission-pill ${permissions?.accessibilityEnabled && permissions.overlayGranted ? 'ready' : ''}`}>
+            {permissions?.accessibilityEnabled && permissions.overlayGranted ? 'Ready' : 'Setup needed'}
+          </span>
+          <button className="text-button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Hide setup' : 'Configure'}</button>
         </div>
-      )}
-      {message && <p className="focus-lock-message" role="status">{message}</p>}
-      <small className="focus-lock-note">Android shows both permissions in its own Settings screens. You can always stop Focus Lock from Margdarshi or revoke access in Settings.</small>
+      </div>
+      <p className="profile-muted">{selectedPackages.length ? `${selectedPackages.length} app${selectedPackages.length === 1 ? '' : 's'} selected for protection.` : 'No apps selected yet. Configure this on the Android APK before using external app lock.'}</p>
+      {expanded && <>
+        <div className="focus-lock-steps">
+          <span className={permissions?.accessibilityEnabled ? 'done' : ''}>1. Accessibility access</span>
+          <span className={permissions?.overlayGranted ? 'done' : ''}>2. Display over other apps</span>
+          <span className={selectedPackages.length ? 'done' : ''}>3. Select apps</span>
+        </div>
+        <div className="profile-button-row focus-lock-actions">
+          <button className="button quiet" onClick={() => void FocusLock.openAccessibilitySettings().catch(() => setMessage('Accessibility settings open only inside the Android APK.'))}>Open Accessibility settings</button>
+          <button className="button quiet" onClick={() => void FocusLock.openOverlaySettings().catch(() => setMessage('Overlay settings open only inside the Android APK.'))}>Allow overlay</button>
+          <button className="button quiet" onClick={() => { void refreshPermissions(); void loadApps() }} disabled={busy}>{busy ? 'Loading…' : 'Load installed apps'}</button>
+        </div>
+        {apps.length > 0 && (
+          <div className="focus-app-list" aria-label="Apps protected by Focus Lock">
+            {apps.map((app) => (
+              <label className="focus-app-option" key={app.packageName}>
+                <input type="checkbox" checked={selectedSet.has(app.packageName)} onChange={() => toggleApp(app.packageName)} />
+                <span>{app.label}</span>
+                <small>{app.packageName}</small>
+              </label>
+            ))}
+          </div>
+        )}
+        {message && <p className="focus-lock-message" role="status">{message}</p>}
+        <small className="focus-lock-note">Android shows both permissions in its own Settings screens. You can always stop Focus Lock from Margdarshi or revoke access in Settings.</small>
+      </>}
     </article>
   )
 }
