@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Margdarshi</string>
+    <string name="title_activity_main">Margdarshi</string>
+    <string name="package_name">com.margdarshi.app</string>
+    <string name="custom_url_scheme">com.margdarshi.app</string>
+    <string name="focus_lock_service_description">Shows a Focus Lock screen over apps selected by you until your active task is completed.</string>
+</resources>

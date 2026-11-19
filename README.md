@@ -13,10 +13,12 @@ The application is designed to work locally without a backend. Supabase is optio
 - GATE subjects, study sessions, PYQs, mocks, and revision tracking.
 - Coding practice log with problem, platform, topic, and time details.
 - Focus mode with live IST clock and supported Chromium Picture-in-Picture floating timer.
+- Android Focus Lock: select distracting apps, grant Android Accessibility and overlay access, and keep selected apps covered until the active task is completed.
 - End-of-day analysis after 9:30 PM IST with next-day workload suggestions.
 - Hindi/Sanskrit daily guidance with an offline fallback.
 - Browser notifications when supported and an installable offline PWA shell.
 - Optional Supabase email authentication and per-user cloud synchronization.
+- Google OAuth sign-in/sign-up through Supabase.
 
 ## Technology stack
 
@@ -26,6 +28,7 @@ The application is designed to work locally without a backend. Supabase is optio
 - Supabase JavaScript client (optional cloud sync)
 - Vitest
 - HTML, CSS, and browser local storage
+- Capacitor Android shell with a native AccessibilityService for Focus Lock
 
 ## Requirements
 
@@ -54,6 +57,27 @@ npm run preview
 
 The production files are generated in the `dist/` folder. `npm test` runs the automated test suite and `npm run build` performs TypeScript checking before creating the Vite production bundle.
 
+## Android Focus Lock build
+
+The repository includes a Capacitor Android project under `android/`. The Android app is the required installable version for external-app locking; a normal browser/PWA cannot cover other apps.
+
+1. Install Android Studio, the Android SDK, and a JDK supported by the installed Capacitor version.
+2. Open the project in Android Studio, or run `npm run android:debug` from the project root.
+3. Install the generated debug APK on an Android device.
+4. Open **Profile → Android Focus Lock** in Margdarshi.
+5. Use **Open Accessibility settings**, enable **Margdarshi Focus Lock**, then use **Allow overlay** and enable **Display over other apps**.
+6. Load installed apps and select the apps to protect.
+7. Start a scheduled task and tap **Focus mode**. The selected apps remain covered until the task is completed; the app also provides an emergency stop path.
+
+Useful commands:
+
+```bash
+npm run cap:sync
+npm run android:debug
+```
+
+The native service uses explicit user-granted Android settings access. It does not hide permissions or attempt to prevent the user from uninstalling the app or revoking access.
+
 ## Optional Supabase cloud sync
 
 The app works with local browser storage even when Supabase is not configured. To enable login and cross-device sync:
@@ -65,6 +89,15 @@ The app works with local browser storage even when Supabase is not configured. T
 5. Add the project URL and the publishable/anonymous key:
 6. Restart the development server after changing `.env`.
 7. Use **Cross-device sync** in the Motivation page to sign in and synchronize the profile.
+
+### Enable Google sign-in
+
+1. In Supabase, open **Authentication → Providers → Google** and enable it.
+2. Create a Google OAuth client in Google Cloud Console and copy its client ID and secret into Supabase.
+3. In Supabase **Authentication → URL Configuration**, add the deployed HTTPS URL to the allowed redirect URLs. For local testing, add `http://localhost:5173` (or the Vite URL shown in the terminal).
+4. Restart Margdarshi and use **Continue with Google** on the first screen.
+
+The button is already included in the app. Until the Google provider is enabled in Supabase, it will show a configuration message instead of opening Google.
 
 The database schema uses row-level security so an authenticated user can access only that user's `app_state` row. Never place a Supabase service-role key, database password, or private API key in a `VITE_` variable or in GitHub.
 

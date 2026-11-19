@@ -97,6 +97,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .timeline-ruler { display:flex; justify-content:space-between; margin:17px 0 0 41px; padding:7px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); color:var(--muted); font:9px "DM Mono",monospace; }.duration-preview,.form-copy { margin:13px 0 0!important; padding:8px 10px; border-radius:6px; color:var(--green)!important; background:var(--green-soft); font:10px "DM Mono",monospace!important; }.form-copy { color:var(--muted)!important; background:var(--surface-soft); font-family:Manrope,"Noto Sans Devanagari",sans-serif!important; line-height:1.55; }
 @media (max-width:720px) { .focus-timer { grid-template-columns:1fr; gap:12px; }.countdown { text-align:left; }.focus-actions { justify-content:space-between; }.analyzer-head,.analyzer-actions { align-items:flex-start; flex-direction:column; }.analysis-grid { grid-template-columns:1fr; } }
 
+/* Keep Profile available in the mobile navigation as well as desktop. */
+@media (max-width:720px) { .nav-links { grid-template-columns:repeat(6,1fr); } }
+
 /* Day-planning and conflict-resolution controls. */
 .planner-modal { width:min(760px,100%); }.planner-switch { display:flex; gap:7px; margin:18px 0 5px; }.planner-switch button { min-height:34px; padding:0 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-soft); color:var(--muted); font-size:11px; font-weight:800; }.planner-switch button.active { color:var(--green); border-color:var(--green); background:var(--green-soft); }.schedule-choice { display:flex; align-items:end; flex-wrap:wrap; gap:12px; padding:11px; margin-top:13px; border-radius:8px; background:var(--surface-soft); }.radio { display:flex!important; grid-template-columns:auto 1fr; align-items:center; margin:0!important; }.radio input { width:14px!important; height:14px; margin:0; accent-color:var(--green); }.date-field { width:150px; margin:0!important; }.date-field input { padding:7px!important; }.multi-drafts { display:grid; gap:13px; margin-top:14px; }.task-draft { border:1px solid var(--line); border-radius:9px; padding:0 13px 13px; background:var(--surface); }.task-draft:first-child { margin-top:14px; }.draft-head { display:flex; align-items:center; justify-content:space-between; padding-top:12px; }.draft-head b { color:var(--green); font-size:10px; text-transform:uppercase; letter-spacing:.8px; }.add-row { min-height:39px; border:1px dashed var(--green); border-radius:8px; background:var(--green-soft); color:var(--green); font-size:11px; font-weight:800; }.conflict-modal { width:min(520px,100%); }.conflict-list { display:grid; gap:8px; margin-top:15px; }.conflict-list>div { display:flex; justify-content:space-between; gap:10px; padding:10px; border-radius:7px; background:var(--amber-soft); color:var(--amber); }.conflict-list b { color:var(--text); font-size:11px; }.conflict-list span { font:10px "DM Mono",monospace; white-space:nowrap; }
 @media (max-width:720px) { .schedule-choice { align-items:stretch; }.date-field { width:100%; }.planner-modal { padding-bottom:28px; }.task-draft { padding:0 10px 10px; }.conflict-list>div { align-items:flex-start; flex-direction:column; } }
@@ -587,5 +590,121 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
   .profile-details > div:last-child {
     grid-column: auto;
+  }
+}
+
+/* ===== Android Focus Lock ===== */
+.focus-lock-card {
+  margin-bottom: 22px;
+  border: 1px solid rgba(43, 95, 75, 0.10);
+}
+
+.permission-pill {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fff1d9;
+  color: #98671b;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+}
+
+.permission-pill.ready {
+  background: #dff3e7;
+  color: #267454;
+}
+
+.focus-lock-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 18px 0;
+}
+
+.focus-lock-steps span {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.focus-lock-steps span.done {
+  border-color: #9cc8ad;
+  background: #eff9f2;
+  color: #267454;
+}
+
+.focus-lock-actions {
+  margin-top: 10px;
+}
+
+.focus-app-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  max-height: 280px;
+  margin-top: 18px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--green-soft);
+}
+
+.focus-app-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: center;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.focus-app-option input {
+  grid-row: span 2;
+}
+
+.focus-app-option span {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-app-option small {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-lock-message {
+  margin-top: 15px;
+  color: #98671b;
+  font-size: 12px;
+}
+
+.focus-lock-note {
+  display: block;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .focus-lock-steps,
+  .focus-app-list {
+    grid-template-columns: 1fr;
   }
 }

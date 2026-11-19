@@ -20,6 +20,9 @@ import { TaskRow } from './components/TaskRow'
 
 import { FocusTimer } from './components/FocusTimer'
 
+import { FocusLockPanel } from './components/FocusLockPanel'
+import { FocusLock } from './lib/focusLock'
+
 type CalendarMode = 'month' | 'week' | 'day'
 
 type TaskForm = Omit<TaskTemplate, 'id'> & { id?: string }
@@ -120,10 +123,8 @@ export default function App() {
 useEffect(() => {
   document.documentElement.dataset.theme = state.settings.theme
 
-  if (!supabase) {
-    saveLocalState(state)
-  }
-}, [state])
+  saveLocalState(state, cloudUserId ?? undefined)
+}, [state, cloudUserId])
 
 
   useEffect(() => {
@@ -154,12 +155,13 @@ useEffect(() => {
       displayName: user.user_metadata?.full_name ?? previous.settings.displayName,
   },
 }))
+      const localState = loadLocalState(user.id)
       setCloudUserId(user.id)
 
       try {
 
         const remote = await readCloudState(user.id)
-        const remoteState = remote ?? createInitialState()
+        const remoteState = remote ?? localState
         const authName = user.user_metadata?.full_name
 
         if (live) { 
@@ -215,12 +217,14 @@ if (live) setCloudReady(true)
       }
 
       const userId = session.user.id
+      const localState = loadLocalState(userId)
       setCloudReady(false)
       setCloudUserId(userId)
       void readCloudState(userId).then((remote) => {
         if (!live) return
-       setState(remote ?? createInitialState())
+       setState(remote ?? localState)
        setCloudReady(true)
+       if (!remote) void writeCloudState(userId, localState).catch(() => undefined)
       }).catch(() => {
      if (!live) return
       setToast('Cloud data could not load. Please try again.')
@@ -263,13 +267,13 @@ useEffect(() => {
 
   useEffect(() => {
 
-    if (!state.settings.notifications || Notification.permission !== 'granted') return
+    if (!state.settings.notifications || !('Notification' in window) || Notification.permission !== 'granted') return
 
-    const notify = () => {
+    const notify = async () => {
 
       const now = new Date(); const minutes = indiaMinutes(now)
 
-      tasksForDate(state, indiaDateKey(now)).filter((task) => !task.completed).forEach((task) => {
+      for (const task of tasksForDate(state, indiaDateKey(now)).filter((item) => !item.completed)) {
 
         const [hour, minute] = task.startTime.split(':').map(Number)
 
@@ -279,11 +283,19 @@ useEffect(() => {
 
           const key = `margdarshi-notified-${indiaDateKey(now)}-${task.id}`
 
-          if (!sessionStorage.getItem(key)) { new Notification('MARGDARSHI', { body: `${task.title} starts in 5 minutes.` }); sessionStorage.setItem(key, '1') }
+          if (!localStorage.getItem(key)) {
+            const registration = await navigator.serviceWorker?.ready.catch(() => null)
+            if (registration?.showNotification) {
+              await registration.showNotification('MARGDARSHI', { body: `${task.title} starts in 5 minutes.`, icon: '/icon.svg', tag: key })
+            } else {
+              new Notification('MARGDARSHI', { body: `${task.title} starts in 5 minutes.`, icon: '/icon.svg' })
+            }
+            localStorage.setItem(key, '1')
+          }
 
         }
 
-      })
+      }
 
     }
 
@@ -445,6 +457,28 @@ useEffect(() => {
 
   }
 
+  const startNativeFocusLock = async (task: Task) => {
+    const selectedPackages = state.settings.blockedApps ?? []
+    if (!selectedPackages.length) {
+      return { started: false, message: 'Select at least one app in Profile → Android Focus Lock. In-app Focus mode is still active.' }
+    }
+
+    try {
+      const permissions = await FocusLock.getPermissionStatus()
+      if (!permissions.accessibilityEnabled || !permissions.overlayGranted) {
+        return { started: false, message: 'Complete both Android permissions in Profile → Android Focus Lock. In-app Focus mode is still active.' }
+      }
+      await FocusLock.startFocusLock({ packages: selectedPackages, taskTitle: task.title })
+      return { started: true }
+    } catch {
+      return { started: false, message: 'External app locking is available in the Margdarshi Android APK. In-app Focus mode is still active.' }
+    }
+  }
+
+  const stopNativeFocusLock = async () => {
+    try { await FocusLock.stopFocusLock() } catch { /* Browser builds do not provide the native plugin. */ }
+  }
+
   const navigateDate = (amount: number) => setSelectedDate((date) => calendarMode === 'month' ? addMonths(date, amount) : addDays(date, amount * (calendarMode === 'week' ? 7 : 1)))
 
   const updateNote = (field: 'reflection' | 'tomorrowPriority', value: string) => modify((previous) => ({ ...previous, dailyNotes: { ...previous.dailyNotes, [selectedDate]: { date: selectedDate, reflection: previous.dailyNotes[selectedDate]?.reflection || '', tomorrowPriority: previous.dailyNotes[selectedDate]?.tomorrowPriority || '', [field]: value } } }))
@@ -469,7 +503,7 @@ useEffect(() => {
 
     <div className="nav-links">{
 
-    ([     ['dashboard', '⌂', 'Dashboard'], ['calendar', '□', 'Calendar'], ['tasks', '✓', 'Tasks'], ['progress', '◔', 'Progress'], ['motivation', '✦', 'Motivation'],] as [View, string, string][])
+    ([     ['dashboard', '⌂', 'Dashboard'], ['calendar', '□', 'Calendar'], ['tasks', '✓', 'Tasks'], ['progress', '◔', 'Progress'], ['motivation', '✦', 'Motivation'], ['profile', '◉', 'Profile'],] as [View, string, string][])
 
     .map(([id, icon, label]) =>
 
@@ -482,12 +516,6 @@ useEffect(() => {
      </div>
 
     <div className="sidebar-bottom">
-
-      <button className={`profile-nav-button ${(view as string) === 'profile' ? 'active' : ''}`} onClick={() => setView('profile' as View)}>
-        {profilePhoto ? <img src={profilePhoto} alt="Profile" className="profile-nav-photo" /> : <span className="profile-nav-avatar">{(userEmail?.[0] ?? state.settings.displayName?.[0] ?? 'U').toUpperCase()}</span>}
-        <span className="profile-nav-label">Profile</span>
-        <span className="profile-nav-arrow">›</span>
-      </button>
 
       <button className="theme-toggle"
 
@@ -713,6 +741,10 @@ useEffect(() => {
 
   onComplete={toggleTask}
 
+  onStartNativeLock={startNativeFocusLock}
+
+  onStopNativeLock={stopNativeFocusLock}
+
 />
 
       <div className="content-grid dashboard-grid">
@@ -920,6 +952,10 @@ reader.readAsDataURL(file)
         <div><span>Storage</span><strong>{cloudUserId ? 'Cloud sync enabled' : 'Local device storage'}</strong></div>
       </div>
     </article>
+    <FocusLockPanel
+      selectedPackages={state.settings.blockedApps ?? []}
+      onSelectedPackagesChange={(blockedApps) => modify((previous) => ({ ...previous, settings: { ...previous.settings, blockedApps } }))}
+    />
     <article className="card profile-card">
       <div className="card-label">LEGAL</div><h2>Terms &amp; Privacy</h2>
       <p className="profile-muted">Review how your account and planner data should be handled.</p>

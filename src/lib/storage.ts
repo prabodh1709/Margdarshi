@@ -3,13 +3,20 @@ import type { AppState } from '../types'
 import { createInitialState, LEGACY_DEFAULT_TEMPLATES } from './defaults'
 
 const STORAGE_KEY = 'margdarshi-state-v1'
+const userStorageKey = (userId: string) => `${STORAGE_KEY}:${userId}`
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-export const supabase: SupabaseClient | null = url && anonKey ? createClient(url, anonKey) : null
+export const supabase: SupabaseClient | null = url && anonKey ? createClient(url, anonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+}) : null
 
-export const loadLocalState = (): AppState => {
+export const loadLocalState = (userId?: string): AppState => {
   try {
-    const value = localStorage.getItem(STORAGE_KEY)
+    const value = localStorage.getItem(userId ? userStorageKey(userId) : STORAGE_KEY)
     if (!value) return createInitialState()
     const parsed = JSON.parse(value) as Partial<AppState> & { version?: number }
     const fresh = createInitialState()
@@ -20,12 +27,12 @@ export const loadLocalState = (): AppState => {
       if (isLegacyProfile && (task.sourceTemplateId && legacyIds.has(task.sourceTemplateId))) return [key, { ...task, sourceTemplateId: undefined }]
       return [key, task]
     }))
-    return { ...fresh, ...parsed, version: 2, settings: { ...fresh.settings, ...parsed.settings }, templates,
+    return { ...fresh, ...parsed, version: 2, settings: { ...fresh.settings, ...parsed.settings, blockedApps: parsed.settings?.blockedApps ?? fresh.settings.blockedApps }, templates,
       taskOverrides, codingEntries: parsed.codingEntries ?? [], gateEntries: parsed.gateEntries ?? [], dailyNotes: parsed.dailyNotes ?? {}, subjects: parsed.subjects?.length ? parsed.subjects : fresh.subjects, shownMotivationDates: parsed.shownMotivationDates ?? [] }
   } catch { return createInitialState() }
 }
 
-export const saveLocalState = (state: AppState) => localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+export const saveLocalState = (state: AppState, userId?: string) => localStorage.setItem(userId ? userStorageKey(userId) : STORAGE_KEY, JSON.stringify(state))
 
 export const getCloudUser = async (): Promise<User | null> => {
   if (!supabase) return null

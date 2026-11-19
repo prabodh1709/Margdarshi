@@ -1,6 +1,6 @@
 export type Category = 'GATE' | 'Coding' | 'Meditation' | 'Sleep' | 'Food' | 'Break' | 'Personal'
 export type Priority = 'high' | 'medium' | 'low'
-export type View = 'dashboard' | 'calendar' | 'tasks' | 'progress' | 'motivation'
+export type View = 'dashboard' | 'calendar' | 'tasks' | 'progress' | 'motivation' | 'profile'
 
 export interface TaskTemplate {
   id: string
@@ -61,6 +61,7 @@ export interface AppSettings {
   targetDate: string
   targetGateHours: number
   targetCodingProblems: number
+  blockedApps: string[]
 }
 
 export interface AppState {

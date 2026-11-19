@@ -100,6 +100,31 @@ export default function Auth() {
     }
   }
 
+  async function continueWithGoogle() {
+    setMessage('')
+
+    if (!supabase) {
+      setMessage('Google sign-in is unavailable until Supabase is configured.')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      })
+
+      if (error) throw error
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Google sign-in could not start.')
+      setLoading(false)
+    }
+  }
+
   async function resendOtp() {
     setMessage('')
 
@@ -252,16 +277,35 @@ export default function Auth() {
 
             {!(mode === 'signup' && step === 'otp') && (
               <>
-              <label htmlFor="auth-name">Full Name</label>
-              <input
-               id="auth-name"
-               type="text"
-               autoComplete="name"
-               required
-               value={fullName}
-               onChange={(event) => setFullName(event.target.value)}
-               placeholder="Enter your full name"
-/>
+                <button
+                  className="auth-google-button"
+                  type="button"
+                  onClick={() => void continueWithGoogle()}
+                  disabled={loading}
+                >
+                  <span className="auth-google-icon" aria-hidden="true">G</span>
+                  {loading ? 'Connecting…' : 'Continue with Google'}
+                </button>
+                <div className="auth-divider">
+                  <span>OR</span>
+                </div>
+              </>
+            )}
+
+            {!(mode === 'signup' && step === 'otp') && (
+              <>
+              {mode === 'signup' && <>
+                <label htmlFor="auth-name">Full Name</label>
+                <input
+                  id="auth-name"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Enter your full name"
+                />
+              </>}
                 <label htmlFor="auth-email">Email address</label>
                 <input
                   id="auth-email"
@@ -388,10 +432,6 @@ export default function Auth() {
                 {message}
               </p>
             )}
-
-            <div className="auth-divider">
-              <span>OR</span>
-            </div>
 
             <p className="auth-switch">
               {mode === 'signup'

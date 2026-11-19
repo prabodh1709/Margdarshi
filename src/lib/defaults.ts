@@ -28,5 +28,5 @@ export const createInitialState = (): AppState => ({
   dailyNotes: {},
   subjects: ['Core subject', 'Engineering Mathematics', 'General Aptitude'],
   shownMotivationDates: [],
-  settings: { displayName: 'Prabodh', theme: 'light', notifications: false, weekStartsMonday: true, targetName: 'GATE preparation', targetDate: '', targetGateHours: 600, targetCodingProblems: 250 },
+  settings: { displayName: 'Prabodh', theme: 'light', notifications: false, weekStartsMonday: true, targetName: 'GATE preparation', targetDate: '', targetGateHours: 600, targetCodingProblems: 250, blockedApps: [] },
 })
